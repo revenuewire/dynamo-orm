@@ -13,7 +13,6 @@ class Model
     protected $table;
     protected $isNew;
     protected $modifiedColumns;
-    protected $isModified;
     protected $dbClient;
 
     /** @var $marshaller Marshaler */
