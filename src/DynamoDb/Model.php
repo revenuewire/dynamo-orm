@@ -232,7 +232,6 @@ class Model
         ];
         $class::$client->deleteItem($item);
 
-        unset($this);
         return true;
     }
 
