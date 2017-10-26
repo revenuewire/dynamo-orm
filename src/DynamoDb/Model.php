@@ -84,10 +84,13 @@ class Model
      */
     public function __set($property, $value)
     {
-        if (!empty($this->data[$property]) && $this->isNew === false) {
-            $this->modifiedColumns[$property] = true;
+        $value = trim($value);
+        if ($value !== null && $value != "") {
+            if (!empty($this->data[$property]) && $this->isNew === false) {
+                $this->modifiedColumns[$property] = true;
+            }
+            $this->data[$property] = $value;
         }
-        $this->data[$property] = $value;
     }
 
     /**
