@@ -1,5 +1,5 @@
 # Install
-composer require revenuewire/dynamo-orm
+composer require revenuewire/dynamodb-orm
 
 # Configuration
 ```php
