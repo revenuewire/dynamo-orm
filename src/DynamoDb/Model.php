@@ -1,8 +1,12 @@
 <?php
 namespace RW\DynamoDb;
+use Aws\CommandInterface;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Marshaler;
+use Aws\Exception\AwsException;
+use Aws\MockHandler;
 use Aws\Result;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * Class Model
@@ -20,23 +24,53 @@ class Model
 
     /** @var $client DynamoDbClient */
     public static $client;
+
+    public static $config;
+
     /**
      * Init the db
      * @param $config
+     * @param $mock MockHandler
      *
      * @return DynamoDbClient
      */
-    public static function configure($config)
+    public static function configure($config, $mock = null)
     {
         $defaultConfig = [
             "region" => "us-west-1",
             "version" => "2012-08-10"
         ];
-        $config = array_merge($defaultConfig, $config);
-        self::$client = new DynamoDbClient($config);
+        self::$config = array_merge($defaultConfig, $config);
+
+        if ($mock !== null) {
+            self::$config['handler'] = $mock;
+        }
+
+        self::$client = new DynamoDbClient(self::$config);
         self::$marshaller = new Marshaler();
 
         return self::$client;
+    }
+
+    /**
+     * Set Mock Handler
+     *
+     * @param array $result
+     * @return MockHandler
+     */
+    public static function mock($result = ['foo' => 'bar'])
+    {
+        $mock = new MockHandler();
+
+        // Return a mocked result.
+        $mock->append(new Result($result));
+
+        // You can provide a function to invoke. Here we throw a mock exception.
+        $mock->append(function (CommandInterface $cmd, RequestInterface $req) {
+            return new AwsException('Mock exception', $cmd);
+        });
+
+        return $mock;
     }
 
     /**
