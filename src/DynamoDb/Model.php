@@ -279,8 +279,7 @@ class Model
                 $data[$key] = self::dataSanity($data[$key]);
             }
 
-
-            if (preg_match('/([a-z0-9]+)/', $key) == 0 || empty($data[$key])) {
+            if (empty($data[$key])) {
                 unset($data[$key]);
             }
         }
