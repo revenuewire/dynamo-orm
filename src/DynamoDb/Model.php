@@ -84,7 +84,6 @@ class Model
      */
     public function __set($property, $value)
     {
-        $value = trim($value);
         if ($value !== null && $value != "") {
             if (!empty($this->data[$property]) && $this->isNew === false) {
                 $this->modifiedColumns[$property] = true;
