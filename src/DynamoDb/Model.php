@@ -65,11 +65,6 @@ class Model
         // Return a mocked result.
         $mock->append(new Result($result));
 
-        // You can provide a function to invoke. Here we throw a mock exception.
-        $mock->append(function (CommandInterface $cmd, RequestInterface $req) {
-            return new AwsException('Mock exception', $cmd);
-        });
-
         return $mock;
     }
 
@@ -284,7 +279,8 @@ class Model
                 $data[$key] = self::dataSanity($data[$key]);
             }
 
-            if (empty($data[$key])) {
+
+            if (preg_match('/([a-z0-9]+)/', $key) == 0 || empty($data[$key])) {
                 unset($data[$key]);
             }
         }
