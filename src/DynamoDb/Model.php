@@ -272,6 +272,28 @@ class Model
     }
 
     /**
+     * Clean up the data
+     *
+     * @param $data
+     * @return mixed
+     */
+    public static function dataSanity($data)
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $data[$key] = self::dataSanity($data[$key]);
+            }
+
+            if (empty($data[$key])) {
+                unset($data[$key]);
+            }
+        }
+
+        return $data;
+
+    }
+
+    /**
      * Save
      *
      * @return $this
@@ -284,6 +306,7 @@ class Model
             $this->created = time();
             $this->modified = time();
 
+            $this->data = self::dataSanity($this->data);
             $item = array(
                 'TableName' => $class::$tableName,
                 'Item' => self::$marshaller->marshalItem($this->data),
