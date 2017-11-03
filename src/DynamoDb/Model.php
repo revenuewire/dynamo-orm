@@ -114,7 +114,7 @@ class Model
     public function __set($property, $value)
     {
         if ($value !== null && $value != "") {
-            if (!empty($this->data[$property]) && $this->isNew === false) {
+            if ($this->isNew === false) {
                 $this->modifiedColumns[$property] = true;
             }
             $this->data[$property] = $value;
