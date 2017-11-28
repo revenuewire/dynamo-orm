@@ -279,7 +279,7 @@ class Model
                 $data[$key] = self::dataSanity($data[$key]);
             }
 
-            if (empty($data[$key])) {
+            if ($data[$key] === null && $data[$key] === "") {
                 unset($data[$key]);
             }
         }
