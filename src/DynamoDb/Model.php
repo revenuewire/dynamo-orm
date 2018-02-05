@@ -27,6 +27,8 @@ class Model
 
     public static $config;
 
+    protected static $schema = [];
+
     /**
      * Init the db
      * @param $config
@@ -247,6 +249,23 @@ class Model
     }
 
     /**
+     * Convert a query result to array
+     *
+     * @param $collections
+     * @return array
+     */
+    public static function queryResultToArray($collections)
+    {
+        $collectionData = [];
+
+        foreach ($collections->getIterator()['Items'] as $collection) {
+            $collectionData[] = self::populateItemToObject($collection)->toArray();
+        }
+
+        return $collectionData;
+    }
+
+    /**
      * Delete the object
      *
      * @return bool
@@ -347,5 +366,122 @@ class Model
         }
 
         return $this;
+    }
+
+    /**
+     * @param $filters
+     *
+     * @return array
+     * @throws Exception
+     */
+    protected static function keyConditionExpression($filters)
+    {
+        $index = null;
+        $keyConditionExpression = null;
+        $expressionAttributeValues = [];
+        $expressionAttributeNames = [];
+        foreach ($filters as $name => $filter) {
+            $index = $name . '-idx';
+
+            // do we have an index for this filter?
+            if (!isset(self::$schema['GlobalSecondaryIndexes']) || !in_array($index, array_column(self::$schema['GlobalSecondaryIndexes'], 'IndexName'))) {
+                $index = null;
+                continue;
+            }
+
+            $expressionAttributeNames['#' . $name] = $name;
+
+            if (is_array($filter)) {
+                // hash indexes do not support multiple values, leave this commented out for now
+                //                foreach($filter as $key => $value) {
+                //                    $expressionAttributeValues[':' . $name . $key] = self::$marshaller->marshalValue($value);
+                //                }
+                //
+                //                $keyConditionExpression = "#$name IN (" . implode(',', array_keys($expressionAttributeValues)) . ")";
+
+                $index = null;
+                continue;
+
+            } else {
+                $expressionAttributeValues[':' . $name] = self::$marshaller->marshalValue($filter);
+                $keyConditionExpression = "#$name = :$name";
+            }
+
+            // dynamo only supports one index, so stop after first filter
+            break;
+        }
+
+        return [$index, $keyConditionExpression, $expressionAttributeNames, $expressionAttributeValues];
+    }
+
+    /**
+     * @param $filters
+     *
+     * @return array
+     * @throws Exception
+     */
+    protected static function filterExpression($index, $filters)
+    {
+        $index = str_replace('-idx', '', $index);
+
+        $filters = self::validateAttributes($filters);
+
+        $filterExpressions = [];
+        $expressionAttributeValues = [];
+        $expressionAttributeNames = [];
+        foreach ($filters as $name => $filter) {
+            // do not use the index in the expression filter (https://docs.aws.amazon.com/aws-sdk-php/v2/guide/service-dynamodb.html)
+            if ($index === $name) continue;
+
+            $expressionAttributeNames['#' . $name] = $name;
+
+            if (is_array($filter)) {
+                foreach($filter as $key => $value) {
+                    $expressionAttributeValues[':' . $name . $key] = self::$marshaller->marshalValue($value);
+                }
+
+                $filterExpressions[] = "#$name IN (" . implode(',', array_keys($expressionAttributeValues)) . ")";
+
+            } else {
+                $expressionAttributeValues[':' . $name] = self::$marshaller->marshalValue($filter);
+                $filterExpressions[] = "#$name = :$name";
+            }
+        }
+
+        return [implode(' AND ', $filterExpressions), $expressionAttributeNames, $expressionAttributeValues];
+    }
+
+    /**
+     * @param $filters
+     * @param $index
+     *
+     * @return array
+     */
+    protected static function scanFilter($filters, $index)
+    {
+        $index = str_replace('-idx', '', $index);
+
+        $scanfilter = [];
+        foreach ($filters as $name => $filter) {
+            // do not use the index in the scan filter (https://docs.aws.amazon.com/aws-sdk-php/v2/guide/service-dynamodb.html)
+            if ($name === $index) continue;
+
+            $scanfilter[$name] = [
+                'AttributeValueList' => []
+            ];
+
+            if (is_array($filter)) {
+                $scanfilter[$name]['ComparisonOperator'] = 'IN';
+
+                foreach ($filter as $value) {
+                    $scanfilter[$name]['AttributeValueList'][] = self::$marshaller->marshalValue($value);
+                }
+            } else {
+                $scanfilter[$name]['ComparisonOperator'] = 'EQ';
+                $scanfilter[$name]['AttributeValueList'][] = self::$marshaller->marshalValue($filter);
+            }
+        }
+
+        return $scanfilter;
     }
 }
