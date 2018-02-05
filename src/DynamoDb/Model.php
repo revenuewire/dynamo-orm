@@ -258,8 +258,8 @@ class Model
     {
         $collectionData = [];
 
-        foreach ($collections->getIterator()['Items'] as $collection) {
-            $collectionData[] = self::populateItemToObject($collection)->toArray();
+        foreach ($collections->get('Items') as $item) {
+            $collectionData[] = self::populateItemToObject($item)->toArray();
         }
 
         return $collectionData;
