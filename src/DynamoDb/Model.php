@@ -424,8 +424,6 @@ class Model
     {
         $index = str_replace('-idx', '', $index);
 
-        $filters = self::validateAttributes($filters);
-
         $filterExpressions = [];
         $expressionAttributeValues = [];
         $expressionAttributeNames = [];
