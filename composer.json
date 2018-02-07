@@ -3,7 +3,7 @@
   "type": "library",
   "description": "RW Dynamo ORM",
   "homepage": "https://github.com/revenuewire/dynamo-orm",
-  "license": "Apache License 2.0",
+  "license": "Apache-2.0",
   "authors": [
     {
       "name": "Scott Wang",
