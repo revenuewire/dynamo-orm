@@ -145,6 +145,22 @@ class Model
     }
 
     /**
+     * @return mixed
+     */
+    public function getCreated()
+    {
+        return $this->created;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getModified()
+    {
+        return $this->modified;
+    }
+
+    /**
      * Get A dump of data
      */
     public function debug()
