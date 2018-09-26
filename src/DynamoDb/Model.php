@@ -115,12 +115,10 @@ class Model
      */
     public function __set($property, $value)
     {
-        if ($value !== null && $value !== "") {
-            if ($this->isNew === false) {
-                $this->modifiedColumns[$property] = true;
-            }
-            $this->data[$property] = $value;
+        if ($this->isNew === false) {
+            $this->modifiedColumns[$property] = true;
         }
+        $this->data[$property] = $value;
     }
 
     /**
@@ -314,7 +312,7 @@ class Model
                 $data[$key] = self::dataSanity($data[$key]);
             }
 
-            if ($data[$key] === null && $data[$key] === "") {
+            if ($data[$key] === null || $data[$key] === "" || $data[$key] === []) {
                 unset($data[$key]);
             }
         }
@@ -330,13 +328,14 @@ class Model
      */
     public function save()
     {
+        $this->data = self::dataSanity($this->data);
+
         $class = get_called_class();
         if ($this->isNew) {
             $this->isNew = false;
             $this->created = time();
             $this->modified = time();
 
-            $this->data = self::dataSanity($this->data);
             $item = array(
                 'TableName' => $class::$tableName,
                 'Item' => self::$marshaller->marshalItem($this->data),
@@ -356,7 +355,7 @@ class Model
             $expressionAttributeValues = [];
             $updateExpressionHolder = [];
             foreach ($this->modifiedColumns as $field => $hasModified) {
-                if ($hasModified === true) {
+                if ($hasModified === true && isset($this->data[$field])) {
                     $expressionAttributeNames['#' . $field] = $field;
                     $expressionAttributeValues[':'.$field] = self::$marshaller->marshalValue($this->data[$field]);
                     $updateExpressionHolder[] = "#$field = :$field";
