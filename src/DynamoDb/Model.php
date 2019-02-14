@@ -333,8 +333,8 @@ class Model
         $class = get_called_class();
         if ($this->isNew) {
             $this->isNew = false;
-            $this->created = time();
-            $this->modified = time();
+            $this->created = isset($this->data['created']) ? $this->data['created']: time();
+            $this->modified = isset($this->data['modified']) ? $this->data['created']: time();
 
             $item = array(
                 'TableName' => $class::$tableName,
@@ -349,7 +349,7 @@ class Model
         }
 
         if ($this->isModified()) {
-            $this->modified = time();
+            $this->modified = isset($this->data['modified']) ? $this->data['created']: time();
 
             $expressionAttributeNames = [];
             $expressionAttributeValues = [];
