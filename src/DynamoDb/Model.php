@@ -29,6 +29,9 @@ class Model
 
     protected static $schema = [];
 
+    protected static $useTransaction = false;
+    protected static $transactions = [];
+
     /**
      * Init the db
      * @param $config
@@ -333,8 +336,8 @@ class Model
         $class = get_called_class();
         if ($this->isNew) {
             $this->isNew = false;
-            $this->created = isset($this->data['created']) ? $this->data['created']: time();
-            $this->modified = isset($this->data['modified']) ? $this->data['created']: time();
+            $this->created = time();
+            $this->modified = time();
 
             $item = array(
                 'TableName' => $class::$tableName,
@@ -343,13 +346,18 @@ class Model
                 'ReturnValues' => 'ALL_OLD'
             );
 
-            $class::$client->putItem($item);
-
+            if (self::$useTransaction === true) {
+                self::$transactions[] = [
+                    "Put" => $item
+                ];
+            } else {
+                $class::$client->putItem($item);
+            }
             return $this;
         }
 
         if ($this->isModified()) {
-            $this->modified = isset($this->data['modified']) ? $this->data['created']: time();
+            $this->modified = time();
 
             $expressionAttributeNames = [];
             $expressionAttributeValues = [];
@@ -377,124 +385,118 @@ class Model
                 'ReturnValues' => 'ALL_NEW'
             ];
 
-            $class::$client->updateItem($updateAttributes);
+            if (self::$useTransaction === true) {
+                self::$transactions[] = [
+                    "Update" => $item
+                ];
+            } else {
+                $class::$client->updateItem($updateAttributes);
+            }
         }
 
         return $this;
     }
 
     /**
-     * @param $filters
-     *
-     * @return array
-     * @throws Exception
-     */
-    protected static function keyConditionExpression($filters)
-    {
-        $index = null;
-        $keyConditionExpression = null;
-        $expressionAttributeValues = [];
-        $expressionAttributeNames = [];
-        foreach ($filters as $name => $filter) {
-            $index = $name . '-idx';
-
-            // do we have an index for this filter?
-            if (!isset(self::$schema['GlobalSecondaryIndexes']) || !in_array($index, array_column(self::$schema['GlobalSecondaryIndexes'], 'IndexName'))) {
-                $index = null;
-                continue;
-            }
-
-            $expressionAttributeNames['#' . $name] = $name;
-
-            if (is_array($filter)) {
-                // hash indexes do not support multiple values, leave this commented out for now
-                //                foreach($filter as $key => $value) {
-                //                    $expressionAttributeValues[':' . $name . $key] = self::$marshaller->marshalValue($value);
-                //                }
-                //
-                //                $keyConditionExpression = "#$name IN (" . implode(',', array_keys($expressionAttributeValues)) . ")";
-
-                $index = null;
-                continue;
-
-            } else {
-                $expressionAttributeValues[':' . $name] = self::$marshaller->marshalValue($filter);
-                $keyConditionExpression = "#$name = :$name";
-            }
-
-            // dynamo only supports one index, so stop after first filter
-            break;
-        }
-
-        return [$index, $keyConditionExpression, $expressionAttributeNames, $expressionAttributeValues];
-    }
-
-    /**
-     * @param $filters
-     *
-     * @return array
-     * @throws Exception
-     */
-    protected static function filterExpression($index, $filters)
-    {
-        $index = str_replace('-idx', '', $index);
-
-        $filterExpressions = [];
-        $expressionAttributeValues = [];
-        $expressionAttributeNames = [];
-        foreach ($filters as $name => $filter) {
-            // do not use the index in the expression filter (https://docs.aws.amazon.com/aws-sdk-php/v2/guide/service-dynamodb.html)
-            if ($index === $name) continue;
-
-            $expressionAttributeNames['#' . $name] = $name;
-
-            if (is_array($filter)) {
-                foreach($filter as $key => $value) {
-                    $expressionAttributeValues[':' . $name . $key] = self::$marshaller->marshalValue($value);
-                }
-
-                $filterExpressions[] = "#$name IN (" . implode(',', array_keys($expressionAttributeValues)) . ")";
-
-            } else {
-                $expressionAttributeValues[':' . $name] = self::$marshaller->marshalValue($filter);
-                $filterExpressions[] = "#$name = :$name";
-            }
-        }
-
-        return [implode(' AND ', $filterExpressions), $expressionAttributeNames, $expressionAttributeValues];
-    }
-
-    /**
-     * @param $filters
-     * @param $index
-     *
+     * @param string $hashKey
+     * @param string $hashValue
+     * @param array $options
      * @return array
      */
-    protected static function scanFilter($filters, $index)
+    public static function query(string $hashKey, string $hashValue, array $options = [])
     {
-        $index = str_replace('-idx', '', $index);
+        $class = get_called_class();
+        $options['index'] = $options['index'] ?? $hashKey . "-idx";
+        $options['filters'] = $options['filters'] ?? [];
+        $options['filterValues'] = $options['filterValues'] ?? [];
+        $options['keyConditionExpression'] = $options['KeyConditionExpression'] ?? null;
+        $options['filterExpression'] = $options['FilterExpression'] ?? null;
 
-        $scanfilter = [];
-        foreach ($filters as $name => $filter) {
-            // do not use the index in the scan filter (https://docs.aws.amazon.com/aws-sdk-php/v2/guide/service-dynamodb.html)
-            if ($name === $index) continue;
-
-            $scanfilter[$name] = [
-                'AttributeValueList' => []
+        $items = [];
+        do {
+            $queryAttributes = [
+                'TableName' => $class::$tableName,
             ];
 
-            if (is_array($filter)) {
-                $scanfilter[$name]['ComparisonOperator'] = 'IN';
+            if (!empty($lastId)) {
+                $queryAttributes['ExclusiveStartKey'] = $lastId;
+            }
+            $attributeNames = [];
+            $attributeValues = [];
 
-                foreach ($filter as $value) {
-                    $scanfilter[$name]['AttributeValueList'][] = self::$marshaller->marshalValue($value);
+            $attributeNames["#$hashKey"] = $hashKey;
+            $attributeValues[":$hashKey"] = self::$marshaller->marshalValue($hashValue);
+
+            foreach ($options['filters'] as $k) {
+                $attributeNames['#' . $k] = $k;
+            }
+
+            foreach ($options['filterValues'] as $k => $v) {
+                $attributeValues[":$k"] = self::$marshaller->marshalValue($v);
+            }
+
+            $queryAttributes['IndexName'] = $options['index'];
+            $queryAttributes['ExpressionAttributeNames'] = $attributeNames;
+            $queryAttributes['ExpressionAttributeValues'] = $attributeValues;
+            $queryAttributes['ScanIndexForward'] = $options['ScanIndexForward'] ?? false;
+
+            if ($options['keyConditionExpression'] === null) {
+                $queryAttributes['KeyConditionExpression'] = "#$hashKey = :$hashKey";
+            } else {
+                $queryAttributes['KeyConditionExpression'] = $options['keyConditionExpression'];
+            }
+
+            if ($options['filterExpression'] === null) {
+                $filterExpressions = [];
+                foreach ($options['filters'] as $k) {
+                    $filterExpressions[] = "#$k = :$k";
+                }
+                $filterExpression = implode(' AND ', $filterExpressions);
+                if (!empty($filterExpression)) {
+                    $queryAttributes['FilterExpression'] = $filterExpression;
                 }
             } else {
-                $scanfilter[$name]['ComparisonOperator'] = 'EQ';
-                $scanfilter[$name]['AttributeValueList'][] = self::$marshaller->marshalValue($filter);
+                $queryAttributes['FilterExpression'] = $options['filterExpression'];;
             }
-        }
 
-        return $scanfilter;
+            $result = self::$client->query($queryAttributes);
+
+            foreach ($result->get('Items') as $item) {
+                $items[] = self::populateItemToObject($item);
+            }
+            $lastId = $result->get('LastEvaluatedKey');
+        } while ($lastId !== null);
+
+        return $items;
+    }
+
+    /**
+     * useTransaction
+     */
+    public static function useTransaction()
+    {
+        self::$useTransaction = true;
+    }
+
+    /**
+     * @return Result
+     * @throws \Exception
+     */
+    public static function commit()
+    {
+        try {
+            $result = self::$client->transactWriteItems([
+                'TransactItems' => self::$transactions
+            ]);
+            self::$useTransaction = false;
+            self::$transactions = [];
+
+            return $result;
+
+        } catch (\Exception $e) {
+            self::$useTransaction = false;
+            self::$transactions = [];
+            throw $e;
+        }
     }
 }
