@@ -387,7 +387,7 @@ class Model
 
             if (self::$useTransaction === true) {
                 self::$transactions[] = [
-                    "Update" => $item
+                    "Update" => $updateAttributes
                 ];
             } else {
                 $class::$client->updateItem($updateAttributes);
