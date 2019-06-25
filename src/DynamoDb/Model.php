@@ -411,6 +411,7 @@ class Model
         $options['filterValues'] = $options['filterValues'] ?? [];
         $options['keyConditionExpression'] = $options['KeyConditionExpression'] ?? null;
         $options['filterExpression'] = $options['FilterExpression'] ?? null;
+        $options['limit'] = $options['limit'] ?? 0;
 
         $items = [];
         do {
@@ -459,10 +460,18 @@ class Model
                 $queryAttributes['FilterExpression'] = $options['filterExpression'];;
             }
 
+            if (!empty($options['limit'])) {
+                $queryAttributes['Limit'] = $options['limit'];
+            }
+
             $result = self::$client->query($queryAttributes);
 
             foreach ($result->get('Items') as $item) {
                 $items[] = self::populateItemToObject($item);
+            }
+
+            if (!empty($options['limit']) && count($items) >= $options['limit']) {
+                break;
             }
             $lastId = $result->get('LastEvaluatedKey');
         } while ($lastId !== null);
