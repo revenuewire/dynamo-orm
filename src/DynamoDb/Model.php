@@ -315,7 +315,12 @@ class Model
                 $data[$key] = self::dataSanity($data[$key]);
             }
 
-            if ($data[$key] === null || $data[$key] === "" || $data[$key] === []) {
+            /**
+             * If null or empty, don't save.
+             * @note: empty string is a legit value but dynamodb doesn't support it, therefore we filtered it out
+             * @see: https://www.quora.com/Why-doesnt-DynamoDB-allow-empty-strings
+             */
+            if ($data[$key] === null || $data[$key] === "") {
                 unset($data[$key]);
             }
         }
