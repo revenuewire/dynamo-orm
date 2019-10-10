@@ -404,11 +404,11 @@ class Model
 
     /**
      * @param string $hashKey
-     * @param string $hashValue
+     * @param mixed $hashValue
      * @param array $options
      * @return array
      */
-    public static function query(string $hashKey, string $hashValue, array $options = [])
+    public static function query(string $hashKey, $hashValue, array $options = [])
     {
         $class = get_called_class();
         $options['index'] = $options['index'] ?? $hashKey . "-idx";
