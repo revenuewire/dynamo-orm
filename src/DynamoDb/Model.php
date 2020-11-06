@@ -349,7 +349,7 @@ class Model
         }
 
         if ($this->isModified()) {
-            $this->modified = isset($this->data['modified']) ? $this->data['created']: time();
+            $this->modified = isset($this->modifiedColumns['modified']) ? $this->data['modified']: time();
 
             $expressionAttributeNames = [];
             $expressionAttributeValues = [];
